@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cpanel-deploy · GitHub Actions to cPanel in one command</title>
+<meta name="description" content="Stop copying the same deploy workflow and typing cPanel passwords into GitHub. Run npx cpanel-deploy, answer a few questions, push.">
+<meta property="og:title" content="cpanel-deploy">
+<meta property="og:description" content="Set up GitHub Actions deploys to cPanel in one command.">
+<meta property="og:url" content="https://saikat.polapain.net/cpanel-deploy">
+<meta name="theme-color" content="#1A1428">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop offset='0' stop-color='%23FF6C2C'/%3E%3Cstop offset='1' stop-color='%23925CFF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='%231A1428'/%3E%3Cpath d='M9 11l6 5-6 5' stroke='url(%23g)' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M17 22h7' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Schibsted+Grotesk:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #EEF1F6;
+  --paper-2: #E2E7EF;
+  --ink: #161824;
+  --muted: #5B6275;
+  --line: #CDD4E0;
+  --term: #1A1428;
+  --term-2: #241C38;
+  --term-dim: #8C84A6;
+  --term-text: #E9E5F5;
+  --orange: #FF6C2C;
+  --pink: #FF4884;
+  --violet: #925CFF;
+  --ok: #3DDC97;
+  --warn: #FFC657;
+  --cyan: #5FD4F4;
+  --grad: linear-gradient(90deg, var(--orange), var(--pink) 50%, var(--violet));
+  --sans: "Schibsted Grotesk", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --wrap: 1120px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12131A; --paper-2: #1A1C26; --ink: #ECEEF4; --muted: #9AA1B4; --line: #2A2D3A;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12131A; --paper-2: #1A1C26; --ink: #ECEEF4; --muted: #9AA1B4; --line: #2A2D3A;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--sans);
+  overflow-x: hidden;
+}
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-color: var(--orange); }
+:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 4px; }
+code, kbd { font-family: var(--mono); font-size: .88em; }
+p code { background: var(--paper-2); padding: .1em .35em; border-radius: 4px; }
+
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+
+/* top bar */
+.bar { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+.mark { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -.01em; }
+.mark svg { width: 28px; height: 28px; }
+.bar nav { display: flex; gap: 22px; font-size: .95rem; }
+.bar nav a { text-decoration: none; color: var(--muted); }
+.bar nav a:hover { color: var(--ink); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; padding-top: 48px; padding-bottom: 96px; }
+h1 {
+  font-weight: 900;
+  font-size: clamp(2.6rem, 5.4vw, 4.4rem);
+  line-height: .98;
+  letter-spacing: -.022em;
+  margin: 0 0 24px;
+}
+.lede { font-size: 1.2rem; color: var(--muted); max-width: 30ch; margin: 0 0 32px; }
+
+.cmd {
+  display: inline-flex; align-items: center; gap: 14px;
+  font: 600 1.15rem var(--mono);
+  background: var(--term); color: var(--term-text);
+  border: 0; border-radius: 12px;
+  padding: 16px 18px 16px 20px; cursor: pointer;
+  position: relative;
+}
+.cmd .dollar { color: var(--term-dim); }
+.cmd .copy { font: 500 .8rem var(--sans); color: var(--term-dim); border-left: 1px solid #3A3150; padding-left: 14px; min-width: 52px; text-align: left; }
+.cmd:hover .copy, .cmd.done .copy { color: var(--ok); }
+.cmd::after { content: ""; position: absolute; inset: auto 20px -3px 20px; height: 3px; border-radius: 3px; background: var(--grad); }
+.req { margin-top: 14px; font-size: .9rem; color: var(--muted); }
+
+/* terminal */
+.term {
+  background: var(--term);
+  border-radius: 14px;
+  box-shadow: 0 30px 60px -30px rgba(26, 20, 40, .55), 0 0 0 1px rgba(146, 92, 255, .18);
+  overflow: hidden;
+  min-width: 0;
+  position: relative;
+}
+.term-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--term-2); }
+.term-head i { width: 11px; height: 11px; border-radius: 50%; background: #3A3150; }
+.term-head span { margin-left: 10px; font: 400 .78rem var(--mono); color: var(--term-dim); }
+.term-body {
+  font: 400 .8rem/1.55 var(--mono);
+  color: var(--term-text);
+  padding: 18px 20px 20px;
+  height: 470px;
+  overflow: hidden;
+  white-space: pre;
+  position: relative;
+}
+.term-body .ln { display: block; min-height: 1.55em; }
+.term-body .ln.tight { line-height: 1.12; min-height: 1.12em; }
+.t-dim { color: var(--term-dim); }
+.t-bar { color: #4E4568; }
+.t-ok { color: var(--ok); }
+.t-warn { color: var(--warn); }
+.t-cyan { color: var(--cyan); }
+.t-bold { font-weight: 600; color: #fff; }
+.t-grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.caret { display: inline-block; width: .6em; height: 1.1em; background: var(--term-text); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.replay { display: none; position: absolute; right: 14px; bottom: 12px; font: 500 .78rem var(--sans); color: var(--term-text); background: #3A3150; border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.term.finished .replay { display: block; }
+
+/* sections */
+section { padding: 88px 0; border-top: 1px solid var(--line); }
+h2 { font-weight: 900; font-size: clamp(1.9rem, 3.4vw, 2.6rem); line-height: 1.05; letter-spacing: -.018em; margin: 0 0 16px; max-width: 22ch; }
+.sub { color: var(--muted); max-width: 60ch; margin: 0 0 48px; }
+
+/* before / after */
+.versus { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 40px; align-items: start; }
+.yaml {
+  font: 400 .78rem/1.65 var(--mono);
+  background: var(--paper-2);
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin: 0;
+  overflow-x: auto;
+  color: var(--muted);
+}
+.yaml mark { background: none; color: var(--ink); font-weight: 600; box-shadow: inset 0 -.55em 0 rgba(255, 108, 44, .28); }
+.figcap { font-size: .9rem; color: var(--muted); margin-top: 12px; }
+.now h3 { font-size: 1.3rem; margin: 0 0 12px; letter-spacing: -.01em; }
+.now ul { margin: 0; padding: 0; list-style: none; }
+.now li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.now li strong { display: block; }
+.now li span { color: var(--muted); font-size: .95rem; }
+
+/* steps */
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.steps li { counter-increment: s; position: relative; padding-top: 58px; }
+.steps li::before {
+  content: counter(s);
+  position: absolute; top: 0; left: 0;
+  font: 900 2.6rem/1 var(--sans);
+  letter-spacing: -.04em;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.steps li:not(:last-child)::after { content: ""; position: absolute; top: 20px; left: 44px; right: -14px; height: 2px; background: var(--line); }
+.steps h3 { font-size: 1.05rem; margin: 0 0 6px; letter-spacing: -.01em; }
+.steps p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+/* commands */
+.cmds { width: 100%; border-collapse: collapse; }
+.cmds th, .cmds td { text-align: left; padding: 16px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmds th { font-weight: 500; color: var(--muted); font-size: .9rem; padding-top: 0; }
+.cmds td:first-child { width: 38%; padding-right: 24px; }
+.cmds td code { font-size: .92rem; font-weight: 600; }
+
+/* notes */
+.notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px; }
+.notes div { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.notes h3 { font-size: 1.05rem; margin: 0 0 6px; }
+.notes p { margin: 0; color: var(--muted); font-size: .97rem; }
+
+/* closing */
+.close { text-align: left; display: flex; flex-wrap: wrap; gap: 32px; align-items: center; justify-content: space-between; }
+.close h2 { margin: 0; }
+
+footer { padding: 32px 0 48px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+@media (max-width: 960px) {
+  .hero, .versus { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .hero { padding-top: 32px; padding-bottom: 72px; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .steps li::after { display: none; }
+}
+@media (max-width: 640px) {
+  .wrap { padding-left: 16px; padding-right: 16px; }
+  .bar nav a.hide-sm { display: none; }
+  section { padding: 64px 0; }
+  .term-body { font-size: .68rem; height: 400px; padding: 14px; }
+  .steps, .notes { grid-template-columns: 1fr; }
+  .cmd { font-size: 1rem; }
+  .cmds td:first-child { width: auto; }
+  .cmds tr { display: block; border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .cmds td { display: block; border: 0; padding: 2px 0; }
+  .cmds thead { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap bar">
+  <a class="mark" href="./" aria-label="cpanel-deploy home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#FF6C2C"/><stop offset="1" stop-color="#925CFF"/></linearGradient></defs><rect width="32" height="32" rx="7" fill="#1A1428"/><path d="M9 11l6 5-6 5" stroke="url(#lg)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 22h7" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/></svg>
+    cpanel-deploy
+  </a>
+  <nav>
+    <a class="hide-sm" href="#how">How it works</a>
+    <a class="hide-sm" href="#commands">Commands</a>
+    <a href="https://www.npmjs.com/package/cpanel-deploy">npm</a>
+    <a href="https://github.com/YOUR_GITHUB_USERNAME/cpanel-deploy" data-github>GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <h1>Push to GitHub. Land on cPanel.</h1>
+      <p class="lede">One command sets up the GitHub Actions deploy, tests your FTP login and uploads the secrets for you.</p>
+      <button class="cmd" type="button" data-copy="npx cpanel-deploy" aria-label="Copy command: npx cpanel-deploy">
+        <span><span class="dollar">$</span> npx cpanel-deploy</span>
+        <span class="copy" aria-live="polite">Copy</span>
+      </button>
+      <p class="req">Run it inside your project folder. Needs Node 20.12 or newer.</p>
+    </div>
+
+    <div class="term" aria-label="Example session of cpanel-deploy setting up a Laravel project">
+      <div class="term-head" aria-hidden="true"><i></i><i></i><i></i><span>~/projects/dash-timodesk</span></div>
+      <div class="term-body" id="term" aria-hidden="true"></div>
+      <button class="replay" type="button" id="replay">Replay</button>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>The file you copy into every project</h2>
+      <p class="sub">Same workflow, a few paths changed, then three secrets typed into GitHub by hand. Every repo, every time.</p>
+      <div class="versus">
+        <figure style="margin:0">
+<pre class="yaml"><code>name: Deploy to cPanel
+on:
+  push:
+    branches:
+      - <mark>cp-live</mark>
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via FTP to cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.<mark>CPANEL_HOST</mark> }}
+          username: ${{ secrets.<mark>CPANEL_USERNAME</mark> }}
+          password: ${{ secrets.<mark>CPANEL_PASSWORD</mark> }}
+          local-dir: ./
+          server-dir: <mark>public_html/</mark></code></pre>
+          <figcaption class="figcap">Highlighted: what changes per project, and what you paste into Settings, Secrets, Actions.</figcaption>
+        </figure>
+        <div class="now">
+          <h3>With cpanel-deploy</h3>
+          <ul>
+            <li><strong>Save each cPanel account once</strong><span>Then pick it from a list in every new repo.</span></li>
+            <li><strong>Pick the folder, don't guess it</strong><span>It logs in over FTP and lets you browse to the right place.</span></li>
+            <li><strong>Secrets go up on their own</strong><span>Through the GitHub CLI, or a token you paste once.</span></li>
+            <li><strong>Laravel and Vite builds included</strong><span>Spots composer.json and a build script and adds those steps.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>What happens when you run it</h2>
+      <p class="sub">About a minute, start to finish. Nothing is written until you confirm the summary.</p>
+      <ol class="steps">
+        <li><h3>Choose the account</h3><p>Pick a saved cPanel account or add one. The login is tested right away.</p></li>
+        <li><h3>Choose the branch</h3><p>Pushes to this branch deploy. A manual run button is added too.</p></li>
+        <li><h3>Browse the server</h3><p>Click through folders like public_html/live, or create a new one.</p></li>
+        <li><h3>Confirm build steps</h3><p>composer install, npm run build, and what to skip like .env and node_modules.</p></li>
+        <li><h3>Write and upload</h3><p>The workflow is written, secrets uploaded, and the file committed. Push to ship.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="commands">
+    <div class="wrap">
+      <h2>Commands</h2>
+      <p class="sub">Run without a command to get a menu.</p>
+      <table class="cmds">
+        <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>npx cpanel-deploy init</code></td><td>Sets up deploys for the repo you are in. Run it again to add a second target, like staging next to live.</td></tr>
+          <tr><td><code>npx cpanel-deploy profiles</code></td><td>Add, edit, test or delete your saved cPanel accounts.</td></tr>
+          <tr><td><code>npx cpanel-deploy secrets</code></td><td>Uploads the secrets again after you change an FTP password or move hosts.</td></tr>
+          <tr><td><code>npx cpanel-deploy doctor</code></td><td>Checks Node, Git, the GitHub CLI and which repo you are in.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Good to know</h2>
+      <div class="notes">
+        <div><h3>Where your passwords live</h3><p>In <code>~/.cpanel-deploy/config.json</code> on your own computer, readable only by your user. You can choose not to save a password and type it each time.</p></div>
+        <div><h3>Use a separate FTP account</h3><p>In cPanel, create an FTP account limited to the deploy folder. If the secret ever leaks, it can only touch that folder.</p></div>
+        <div><h3>GitHub CLI or a token</h3><p>If <code>gh</code> is logged in, secrets upload with no questions. Otherwise paste a fine grained token with Secrets read and write.</p></div>
+        <div><h3>Certificate warnings</h3><p>Shared hosts often use a certificate for the server hostname, not your domain. The tool explains this and can allow it for that account.</p></div>
+        <div><h3>Only changed files upload</h3><p>Deploys use FTP-Deploy-Action, which keeps a small state file on the server and sends only what changed.</p></div>
+        <div><h3>Nothing to install on the server</h3><p>Everything runs on GitHub's machines. Your hosting only needs FTP, which every cPanel plan has.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap close">
+      <h2>Next project, one command.</h2>
+      <button class="cmd" type="button" data-copy="npx cpanel-deploy" aria-label="Copy command: npx cpanel-deploy">
+        <span><span class="dollar">$</span> npx cpanel-deploy</span>
+        <span class="copy" aria-live="polite">Copy</span>
+      </button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Made by <a href="https://saikat.polapain.net">Moniruzzaman Saikat</a>. MIT licensed.</span>
+    <span>Not affiliated with cPanel, L.L.C. or GitHub.</span>
+  </div>
+</footer>
+
+<script>
+// Copy buttons
+document.querySelectorAll('[data-copy]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var label = btn.querySelector('.copy');
+    var text = btn.getAttribute('data-copy');
+    var done = function () {
+      btn.classList.add('done'); label.textContent = 'Copied';
+      setTimeout(function () { btn.classList.remove('done'); label.textContent = 'Copy'; }, 1800);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, function () { label.textContent = 'Select it'; });
+    } catch (e) { label.textContent = 'Select it'; }
+  });
+});
+
+// Terminal replay of a real session
+(function () {
+  var el = document.getElementById('term');
+  var box = el.parentElement;
+  var B = '<span class="t-bar">│</span>';
+  // [html, delayBefore(ms), typed?]  typed = text typed after the prompt line
+  var script = [
+    ['<span class="t-dim">$</span> ', 0, 'npx cpanel-deploy init'],
+    ['', 300],
+    ['<span class="t-grad">┌─┐┌─┐┌─┐┌┐┌┌─┐┬    ┌┬┐┌─┐┌─┐┬  ┌─┐┬ ┬</span>', 120],
+    ['<span class="t-grad">│  ├─┘├─┤│││├┤ │  ── ││├┤ ├─┘│  │ │└┬┘</span>', 60],
+    ['<span class="t-grad">└─┘┴  ┴ ┴┘└┘└─┘┴─┘  ─┴┘└─┘┴  ┴─┘└─┘ ┴</span>', 60],
+    ['', 200],
+    ['<span class="t-bar">┌</span>  Set up deploys for this repo', 200],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Repository  <span class="t-bold">saikat/dash-timodesk</span>', 300],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Which cPanel account?', 500],
+    [B + '  timodesk-live <span class="t-dim">deploy@timodesk.com @ ftp.timodesk.com</span>', 400],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Deploy when I push to', 500],
+    [B + '  cp-live', 300],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Server folder  <span class="t-dim">/public_html</span>', 600],
+    [B + '  <span class="t-ok">✔ Deploy here: <span class="t-bold">public_html/live/</span></span>', 400],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  composer.json found <span class="t-dim">(Laravel)</span>. Run composer install?', 500],
+    [B + '  Yes', 250],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  package.json has a "build" script. Build assets?', 400],
+    [B + '  Yes', 250],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Write the workflow and upload the secrets?', 600],
+    [B + '  Yes', 300],
+    [B, 60],
+    ['<span class="t-ok">◆</span>  Wrote <span class="t-cyan">.github/workflows/cpanel-deploy.yml</span>', 400],
+    [B, 60],
+    ['<span class="t-ok">◇</span>  Secrets uploaded to <span class="t-bold">saikat/dash-timodesk</span> <span class="t-dim">(3)</span>', 900],
+    [B, 60],
+    ['<span class="t-ok">◆</span>  Committed', 400],
+    [B, 60],
+    ['<span class="t-bar">└</span>  All set. <span class="t-cyan">git push origin cp-live</span> and watch it ship', 400],
+    ['', 200],
+    ['<span class="t-dim">$</span> <span class="caret"></span>', 100]
+  ];
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timers = [];
+  function line(html) {
+    var s = document.createElement('span'); s.className = html.indexOf('t-grad') > -1 ? 'ln tight' : 'ln'; s.innerHTML = html; el.appendChild(s);
+    el.scrollTop = el.scrollHeight; return s;
+  }
+  function renderAll() {
+    el.innerHTML = '';
+    script.forEach(function (r) { line(r[0] + (r[2] ? '<span class="t-bold">' + r[2] + '</span>' : '')); });
+    box.classList.add('finished');
+  }
+  function play() {
+    timers.forEach(clearTimeout); timers = [];
+    el.innerHTML = ''; box.classList.remove('finished');
+    if (reduce) return renderAll();
+    var t = 400;
+    script.forEach(function (r, i) {
+      t += r[1];
+      timers.push(setTimeout(function () {
+        var s = line(r[0]);
+        if (r[2]) {
+          var out = document.createElement('span'); out.className = 't-bold'; s.appendChild(out);
+          [].forEach.call(r[2], function (ch, k) {
+            timers.push(setTimeout(function () { out.textContent += ch; }, 45 * k));
+          });
+        }
+        if (i === script.length - 1) box.classList.add('finished');
+      }, t));
+      if (r[2]) t += r[2].length * 45 + 250;
+    });
+  }
+  document.getElementById('replay').addEventListener('click', play);
+  // start when visible
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (e) { if (e[0].isIntersecting) { io.disconnect(); play(); } }, { threshold: .3 });
+    io.observe(box);
+  } else { play(); }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "name": "cpanel-deploy",
+  "version": "1.0.0",
+  "description": "Set up GitHub Actions deploys to cPanel in one command. Saves your FTP accounts, browses server folders, writes the workflow and uploads the secrets for you.",
+  "type": "module",
+  "bin": {
+    "cpanel-deploy": "bin/cpanel-deploy.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "keywords": [
+    "cpanel",
+    "deploy",
+    "github-actions",
+    "ftp",
+    "ftps",
+    "ci",
+    "cd",
+    "cli",
+    "laravel",
+    "php"
+  ],
+  "author": "Moniruzzaman Saikat",
+  "license": "MIT",
+  "homepage": "https://saikat.polapain.net/cpanel-deploy",
+  "scripts": {
+    "start": "node bin/cpanel-deploy.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "basic-ftp": "^6.2.3",
+    "libsodium-wrappers": "^0.8.4",
+    "picocolors": "^1.1.1"
+  }
+}
